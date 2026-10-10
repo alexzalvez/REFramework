@@ -454,9 +454,20 @@ void CameraDuplicator::copy_camera_properties() {
         set_far_clip_plane_method->call<void>(sdk::get_thread_context(), new_camera, old_far_clip_plane);
     }
 
-    if (get_fov_method != nullptr && set_fov_method != nullptr) {
+ if (get_fov_method != nullptr && set_fov_method != nullptr) {
         const auto old_fov = get_fov_method->call<float>(sdk::get_thread_context(), old_camera);
-        set_fov_method->call<void>(sdk::get_thread_context(), new_camera, old_fov);
+
+        // [Foco 1 Fix]: Si VR está activo, expandimos el FOV de la cámara principal para cubrir el frustum
+        // combinado de ambos ojos + desplazamiento IPD. Esto evita que el culling de vegetación/sombras
+        // descarte mallas visibles para el ojo derecho.
+        auto& vr = VR::get();
+        if (vr->is_hmd_active()) {
+            const float expanded_culling_fov = std::max(old_fov, 110.0f);
+            set_fov_method->call<void>(sdk::get_thread_context(), old_camera, expanded_culling_fov);
+            set_fov_method->call<void>(sdk::get_thread_context(), new_camera, expanded_culling_fov);
+        } else {
+            set_fov_method->call<void>(sdk::get_thread_context(), new_camera, old_fov);
+        }
     }
 
     if (get_vertical_enable_method != nullptr && set_vertical_enable_method != nullptr) {
